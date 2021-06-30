@@ -9,8 +9,6 @@ var fs = require('co-fs')
   , parseSimulcastStreamList = main.parseSimulcastStreamList
   ;
 
-// some random sdp that keps having random attributes attached to it
-// so we can test that the grammar works as intended
 test('normalSdp', function *(t) {
   var sdp = yield fs.readFile(__dirname + '/normal.sdp', 'utf8');
 
@@ -19,7 +17,6 @@ test('normalSdp', function *(t) {
   var media = session.media;
   t.ok(media && media.length > 0, 'got media');
 
-  // t.equal(session.identifier, '- 20518 0 IN IP4 203.0.113.1', 'identifier');
   t.equal(session.origin.username, '-', 'origin username');
   t.equal(session.origin.sessionId, 20518, 'origin sessionId');
   t.equal(session.origin.sessionVersion, 0, 'origin sessionVersion');
@@ -54,6 +51,7 @@ test('normalSdp', function *(t) {
     direction: 'recvonly',
     uri: 'URI-gps-string'
   }, 'audio extension 1');
+  t.equal(audio.extmapAllowMixed, 'extmap-allow-mixed', 'extmap-allow-mixed present');
 
   var video = media[1];
   t.equal(video.type, 'video', 'video type');
@@ -86,7 +84,7 @@ test('normalSdp', function *(t) {
   t.equal(video.crypto[0].id, 1, 'video crypto 0 id');
   t.equal(video.crypto[0].suite, 'AES_CM_128_HMAC_SHA1_32', 'video crypto 0 suite');
   t.equal(video.crypto[0].config, 'inline:keNcG3HezSNID7LmfDa9J4lfdUL8W1F7TNJKcbuy|2^20|1:32', 'video crypto 0 config');
-  t.equal(video.ssrcs.length, 2, 'video got 2 ssrc lines');
+  t.equal(video.ssrcs.length, 3, 'video got 3 ssrc lines');
   // test ssrc with attr:value
   t.deepEqual(video.ssrcs[0], {
     id: 1399694169,
@@ -98,6 +96,12 @@ test('normalSdp', function *(t) {
     id: 1399694169,
     attribute: 'baz',
   }, 'video 2nd ssrc line attr only');
+  // test ssrc with at-tr:value
+  t.deepEqual(video.ssrcs[2], {
+    id: 1399694169,
+    attribute: 'foo-bar',
+    value: 'baz'
+  }, 'video 3rd ssrc line attr with dash');
 
   // ICE candidates (same for both audio and video in this case)
   [audio.candidates, video.candidates].forEach(function (cs, i) {
@@ -147,7 +151,8 @@ test('normalSdp', function *(t) {
   t.equal(media.length, 2, 'got 2 m-lines');
 });
 
-/* Test for an sdp that started out as something from chrome
+/*
+ * Test for an sdp that started out as something from chrome
  * it's since been hacked to include tests for other stuff
  * ignore the name
  */
@@ -208,6 +213,7 @@ test('hackySdp', function *(t) {
 
 
   t.equal(media[0].iceOptions, 'google-ice', 'ice options parsed');
+  t.equal(media[0].ptime, 0.125, 'audio packet duration');
   t.equal(media[0].maxptime, 60, 'maxptime parsed');
   t.equal(media[0].rtcpMux, 'rtcp-mux', 'rtcp-mux present');
 
@@ -250,6 +256,10 @@ test('hackySdp', function *(t) {
   // verify a=framerate:29.97
   t.ok(media[2].framerate, 'we have framerate');
   t.equal(media[2].framerate, 29.97, 'framerate is 29.97');
+
+  // verify a=label:1
+  t.ok(media[0].label, 'we have label');
+  t.equal(media[0].label, 1, 'label is 1');
 });
 
 test('iceliteSdp', function *(t) {
@@ -337,7 +347,6 @@ test('jssipSdp', function *(t) {
   );
 });
 
-
 test('jsepSdp', function *(t) {
   var sdp = yield fs.readFile(__dirname + '/jsep.sdp', 'utf8');
 
@@ -362,6 +371,7 @@ test('jsepSdp', function *(t) {
   );
 
   t.ok(video.rtcpRsize, 'rtcp-rsize present');
+  t.ok(video.bundleOnly, 'bundle-only present');
 
   // video contains 'a=end-of-candidates'
   // we want to ensure this comes after the candidate lines
@@ -613,4 +623,356 @@ test('simulcastSdp', function *(t) {
   t.deepEqual(video.simulcast_03, {
     value: 'send rid=1,4;2;3 paused=4 recv rid=c'
   }, 'video simulcast draft 03 line');
+});
+
+test('ST2022-6', function *(t) {
+  var sdp = yield fs.readFile(__dirname + '/st2022-6.sdp', 'utf8');
+
+  var session = parse(sdp+'');
+  t.ok(session, 'got session info');
+  var media = session.media;
+  t.ok(media && media.length > 0, 'got media');
+
+  var video = media[0];
+  var sourceFilter = video.sourceFilter;
+  t.equal(sourceFilter.filterMode, 'incl', 'filter-mode is "incl"');
+  t.equal(sourceFilter.netType, 'IN', 'nettype is "IN"');
+  t.equal(sourceFilter.addressTypes, 'IP4', 'address-type is "IP4"');
+  t.equal(sourceFilter.destAddress, '239.0.0.1', 'dest-address is "239.0.0.1"');
+  t.equal(sourceFilter.srcList, '192.168.20.20', 'src-list is "192.168.20.20"');
+});
+
+test('ST2110-20', function* (t) {
+  var sdp = yield fs.readFile(__dirname + '/st2110-20.sdp', 'utf8');
+
+  var session = parse(sdp + '');
+  t.ok(session, 'got session info');
+  var media = session.media;
+  t.ok(media && media.length > 0, 'got media');
+
+  var video = media[0];
+  var sourceFilter = video.sourceFilter;
+  t.equal(sourceFilter.filterMode, 'incl', 'filter-mode is "incl"');
+  t.equal(sourceFilter.netType, 'IN', 'nettype is "IN"');
+  t.equal(sourceFilter.addressTypes, 'IP4', 'address-type is "IP4"');
+  t.equal(sourceFilter.destAddress, '239.100.9.10', 'dest-address is "239.100.9.10"');
+  t.equal(sourceFilter.srcList, '192.168.100.2', 'src-list is "192.168.100.2"');
+
+  t.equal(video.type, 'video', 'video type');
+  var fmtp0Params = parseParams(video.fmtp[0].config);
+  t.deepEqual(fmtp0Params, {
+    sampling: 'YCbCr-4:2:2',
+    width: 1280,
+    height: 720,
+    interlace: undefined,
+    exactframerate: '60000/1001',
+    depth: 10,
+    TCS: 'SDR',
+    colorimetry: 'BT709',
+    PM: '2110GPM',
+    SSN: 'ST2110-20:2017'
+  }, 'video 5th rid params');
+});
+
+test('SCTP-DTLS-26', function* (t) {
+  var sdp = yield fs.readFile(__dirname + '/sctp-dtls-26.sdp', 'utf8');
+
+  var session = parse(sdp + '');
+  t.ok(session, 'got session info');
+  var media = session.media;
+  t.ok(media && media.length > 0, 'got media');
+
+  t.equal(session.origin.sessionId, '5636137646675714991', 'origin sessionId');
+  t.ok(session.groups, 'parsing session groups');
+  t.equal(session.groups.length, 1, 'one grouping');
+  t.equal(session.groups[0].type, 'BUNDLE', 'grouping is BUNDLE');
+  t.equal(session.groups[0].mids, 'data', 'bundling data');
+  t.ok(session.msidSemantic, 'have an msid semantic');
+  t.equal(session.msidSemantic.semantic, 'WMS', 'webrtc semantic');
+
+  // verify media is data application
+  t.equal(media[0].type, 'application', 'media type application');
+  t.equal(media[0].mid, 'data', 'media  id pplication');
+
+  // verify protocol and ports
+  t.equal(media[0].protocol, 'UDP/DTLS/SCTP', 'protocol is UDP/DTLS/SCTP');
+  t.equal(media[0].port, 9, 'the UDP port value is 9');
+  t.equal(media[0].sctpPort, 5000, 'the offerer/answer SCTP port value is 5000');
+
+  // verify maxMessageSize
+  t.equal(media[0].maxMessageSize, 10000, 'maximum message size is 10000');
+});
+
+test('extmapEncryptSdp', function *(t) {
+  var sdp = yield fs.readFile(__dirname + '/extmap-encrypt.sdp', 'utf8');
+
+  var session = parse(sdp+'');
+  t.ok(session, 'got session info');
+  var media = session.media;
+  t.ok(media && media.length > 0, 'got media');
+
+  t.equal(session.origin.username, '-', 'origin username');
+  t.equal(session.origin.sessionId, 20518, 'origin sessionId');
+  t.equal(session.origin.sessionVersion, 0, 'origin sessionVersion');
+  t.equal(session.origin.netType, 'IN', 'origin netType');
+  t.equal(session.origin.ipVer, 4, 'origin ipVer');
+  t.equal(session.origin.address, '203.0.113.1', 'origin address');
+
+  t.equal(session.connection.ip, '203.0.113.1', 'session connect ip');
+  t.equal(session.connection.version, 4, 'session connect ip ver');
+
+  var audio = media[0];
+  t.equal(audio.type, 'audio', 'audio type');
+  t.equal(audio.port, 54400, 'audio port');
+  t.equal(audio.protocol, 'RTP/SAVPF', 'audio protocol');
+  t.equal(audio.rtp[0].payload, 96, 'audio rtp 0 payload');
+  t.equal(audio.rtp[0].codec, 'opus', 'audio rtp 0 codec');
+  t.equal(audio.rtp[0].rate, 48000, 'audio rtp 0 rate');
+
+  // extmap and encrypted extmap
+  t.deepEqual(audio.ext[0], {
+    value: 1,
+    direction: 'sendonly',
+    uri: 'URI-toffset'
+  }, 'audio extension 0');
+  t.deepEqual(audio.ext[1], {
+    value: 2,
+    uri: 'urn:ietf:params:rtp-hdrext:toffset'
+  }, 'audio extension 1');
+  t.deepEqual(audio.ext[2], {
+    value: 3,
+    'encrypt-uri': 'urn:ietf:params:rtp-hdrext:encrypt',
+    uri: 'urn:ietf:params:rtp-hdrext:smpte-tc',
+    config: '25@600/24'
+  }, 'audio extension 2');
+  t.deepEqual(audio.ext[3], {
+    value: 4,
+    direction: 'recvonly',
+    'encrypt-uri': 'urn:ietf:params:rtp-hdrext:encrypt',
+    uri: 'URI-gps-string'
+  }, 'audio extension 3');
+
+  t.equal(media.length, 1, 'got 1 m-lines');
+});
+
+test('dante-aes67', function *(t) {
+  var sdp = yield fs.readFile(__dirname + '/dante-aes67.sdp', 'utf8');
+
+  var session = parse(sdp+'');
+  t.ok(session, 'got session info');
+  var media = session.media;
+  t.ok(media && media.length == 1, 'got single media');
+
+  t.equal(session.origin.username, '-', 'origin username');
+  t.equal(session.origin.sessionId, 1423986, 'origin sessionId');
+  t.equal(session.origin.sessionVersion, 1423994, 'origin sessionVersion');
+  t.equal(session.origin.netType, 'IN', 'origin netType');
+  t.equal(session.origin.ipVer, 4, 'origin ipVer');
+  t.equal(session.origin.address, '169.254.98.63', 'origin address');
+
+  t.equal(session.name, 'AOIP44-serial-1614 : 2', 'Session Name');
+  t.equal(session.keywords, 'Dante', 'Keywords');
+
+  t.equal(session.connection.ip, '239.65.125.63/32', 'session connect ip');
+  t.equal(session.connection.version, 4, 'session connect ip ver');
+
+  var audio = media[0];
+  t.equal(audio.type, 'audio', 'audio type');
+  t.equal(audio.port, 5004, 'audio port');
+  t.equal(audio.protocol, 'RTP/AVP', 'audio protocol');
+  t.equal(audio.direction, 'recvonly', 'audio direction');
+  t.equal(audio.description, '2 channels: TxChan 0, TxChan 1', 'audio description');
+  t.equal(audio.ptime, 1, 'audio packet duration');
+  t.equal(audio.rtp[0].payload, 97, 'audio rtp payload type');
+  t.equal(audio.rtp[0].codec, 'L24', 'audio rtp codec');
+  t.equal(audio.rtp[0].rate, 48000, 'audio sample rate');
+  t.equal(audio.rtp[0].encoding, 2, 'audio channels');
+});
+
+test('bfcp', function *(t) {
+  var sdp = yield fs.readFile(__dirname + '/bfcp.sdp', 'utf8');
+
+  var session = parse(sdp+'');
+  t.ok(session, 'got session info');
+  var media = session.media;
+  t.ok(media && media.length == 4, 'got 4 media');
+
+  t.equal(session.origin.username, '-', 'origin username');
+
+  var audio = media[0];
+  t.equal(audio.type, 'audio', 'audio type');
+
+  var video = media[1];
+  t.equal(video.type, 'video', 'main video type');
+  t.equal(video.direction, 'sendrecv', 'main video direction');
+  t.equal(video.content, 'main', 'main video content');
+  t.equal(video.label, 1, 'main video label');
+
+  var app = media[2];
+  t.equal(app.type, 'application', 'application type');
+  t.equal(app.port, 3238, 'application port');
+  t.equal(app.protocol, 'UDP/BFCP', 'bfcp protocol');
+  t.equal(app.payloads, '*', 'bfcp payloads');
+  t.equal(app.connectionType, 'new', 'connection type');
+  t.equal(app.bfcpFloorCtrl, 's-only', 'bfcp Floor Control');
+  t.equal(app.bfcpConfId, 1, 'bfcp ConfId');
+  t.equal(app.bfcpUserId, 1, 'bfcp UserId');
+  t.equal(app.bfcpFloorId.id, 1, 'bfcp FloorId');
+  t.equal(app.bfcpFloorId.mStream, 3, 'bfcp Floor Stream');
+
+  var video2 = media[3];
+  t.equal(video2.type, 'video', '2nd video type');
+  t.equal(video2.direction, 'sendrecv', '2nd video direction');
+  t.equal(video2.content, 'slides', '2nd video content');
+  t.equal(video2.label, 3, '2nd video label');
+});
+
+test('tcp-active', function *(t) {
+  var sdp = yield fs.readFile(__dirname + '/tcp-active.sdp', 'utf8');
+
+  var session = parse(sdp+'');
+  t.ok(session, 'got session info');
+  var media = session.media;
+  t.ok(media && media.length == 1, 'got single media');
+
+  t.equal(session.origin.username, '-', 'origin username');
+  t.equal(session.origin.sessionId, 1562876543, 'origin sessionId');
+  t.equal(session.origin.sessionVersion, 11, 'origin sessionVersion');
+  t.equal(session.origin.netType, 'IN', 'origin netType');
+  t.equal(session.origin.ipVer, 4, 'origin ipVer');
+  t.equal(session.origin.address, '192.0.2.3', 'origin address');
+
+  var image = media[0];
+  t.equal(image.type, 'image', 'image type');
+  t.equal(image.port, 9, 'port');
+  t.equal(image.connection.version, 4, 'Connection is IPv4');
+  t.equal(image.connection.ip, '192.0.2.3', 'Connection address');
+  t.equal(image.protocol, 'TCP', 'TCP protocol');
+  t.equal(image.payloads, 't38', 'TCP payload');
+  t.equal(image.setup, 'active', 'setup active');
+  t.equal(image.connectionType, 'new', 'new connection');
+});
+
+test('tcp-passive', function *(t) {
+  var sdp = yield fs.readFile(__dirname + '/tcp-passive.sdp', 'utf8');
+
+  var session = parse(sdp+'');
+  t.ok(session, 'got session info');
+  var media = session.media;
+  t.ok(media && media.length == 1, 'got single media');
+
+  t.equal(session.origin.username, '-', 'origin username');
+  t.equal(session.origin.sessionId, 1562876543, 'origin sessionId');
+  t.equal(session.origin.sessionVersion, 11, 'origin sessionVersion');
+  t.equal(session.origin.netType, 'IN', 'origin netType');
+  t.equal(session.origin.ipVer, 4, 'origin ipVer');
+  t.equal(session.origin.address, '192.0.2.2', 'origin address');
+
+  var image = media[0];
+  t.equal(image.type, 'image', 'image type');
+  t.equal(image.port, 54111, 'port');
+  t.equal(image.connection.version, 4, 'Connection is IPv4');
+  t.equal(image.connection.ip, '192.0.2.2', 'Connection address');
+  t.equal(image.protocol, 'TCP', 'TCP protocol');
+  t.equal(image.payloads, 't38', 'TCP payload');
+  t.equal(image.setup, 'passive', 'setup passive');
+  t.equal(image.connectionType, 'existing', 'existing connection');
+});
+
+test('mediaclk-avbtp', function *(t) {
+  var sdp = yield fs.readFile(__dirname + '/mediaclk-avbtp.sdp', 'utf8');
+
+  var session = parse(sdp+'');
+  t.ok(session, 'got session info');
+  var media = session.media;
+  t.ok(media && media.length == 1, 'got single media');
+
+  var audio = media[0];
+  t.equal(audio.mediaClk.mediaClockName, 'IEEE1722', 'IEEE1722 Media Clock');
+  t.equal(audio.mediaClk.mediaClockValue, '38-D6-6D-8E-D2-78-13-2F', 'AVB stream ID');
+});
+
+test('mediaclk-ptp-v2-w-rate', function *(t) {
+  var sdp = yield fs.readFile(__dirname + '/mediaclk-ptp-v2-w-rate.sdp', 'utf8');
+
+  var session = parse(sdp+'');
+  t.ok(session, 'got session info');
+  var media = session.media;
+  t.ok(media && media.length == 1, 'got single media');
+
+  var audio = media[0];
+  t.equal(audio.mediaClk.mediaClockName, 'direct', 'Direct Media Clock');
+  t.equal(audio.mediaClk.mediaClockValue, 963214424, 'offset');
+  t.equal(audio.mediaClk.rateNumerator, 1000, 'rate numerator');
+  t.equal(audio.mediaClk.rateDenominator, 1001, 'rate denominator');
+});
+
+test('mediaclk-ptp-v2', function *(t) {
+  var sdp = yield fs.readFile(__dirname + '/mediaclk-ptp-v2.sdp', 'utf8');
+
+  var session = parse(sdp+'');
+  t.ok(session, 'got session info');
+  var media = session.media;
+  t.ok(media && media.length == 1, 'got single media');
+
+  var audio = media[0];
+  t.equal(audio.mediaClk.mediaClockName, 'direct', 'Direct Media Clock');
+  t.equal(audio.mediaClk.mediaClockValue, 963214424, 'offset');
+});
+
+test('mediaclk-rtp', function *(t) {
+  var sdp = yield fs.readFile(__dirname + '/mediaclk-rtp.sdp', 'utf8');
+
+  var session = parse(sdp+'');
+  t.ok(session, 'got session info');
+  var media = session.media;
+  t.ok(media && media.length == 1, 'got single media');
+
+  var audio = media[0];
+  t.equal(audio.mediaClk.id, 'MDA6NjA6MmI6MjA6MTI6MWY=', 'Media Clock ID');
+  t.equal(audio.mediaClk.mediaClockName, 'sender', 'sender type');
+});
+
+test('ts-refclk-media', function *(t) {
+  var sdp = yield fs.readFile(__dirname + '/ts-refclk-media.sdp', 'utf8');
+
+  var session = parse(sdp+'');
+  t.ok(session, 'got session info');
+
+  var sessTsRefClocks = session.tsRefClocks;
+  t.ok(sessTsRefClocks && sessTsRefClocks.length == 1, 'got one TS Ref Clock');
+  t.equal(sessTsRefClocks[0].clksrc, 'local', 'local Clock Source at Session Level');
+
+  var media = session.media;
+  t.ok(media && media.length == 2, 'got two media');
+
+  var audio = media[0];
+  var audTsRefClocks = audio.tsRefClocks;
+  t.ok(audTsRefClocks && audTsRefClocks.length == 2, 'got two audio TS Ref Clocks');
+
+  var audTsRefClock1 = audTsRefClocks[0];
+  t.equal(audTsRefClock1.clksrc, 'ntp', 'NTP Clock Source');
+  t.equal(audTsRefClock1.clksrcExt, '203.0.113.10', 'IPv4 address');
+
+  var audTsRefClock2 = audTsRefClocks[1];
+  t.equal(audTsRefClock2.clksrc, 'ntp', 'NTP Clock Source');
+  t.equal(audTsRefClock2.clksrcExt, '198.51.100.22', 'IPv4 address');
+
+  var video = media[1];
+  var vidTsRefClocks = video.tsRefClocks;
+  t.ok(vidTsRefClocks && vidTsRefClocks.length == 1, 'got one video TS Ref Clocks');
+  t.equal(vidTsRefClocks[0].clksrc, 'ptp', 'PTP Clock Source');
+  t.equal(vidTsRefClocks[0].clksrcExt, 'IEEE802.1AS-2011:39-A7-94-FF-FE-07-CB-D0', 'PTP config');
+});
+
+test('ts-refclk-sess', function *(t) {
+  var sdp = yield fs.readFile(__dirname + '/ts-refclk-sess.sdp', 'utf8');
+
+  var session = parse(sdp+'');
+  t.ok(session, 'got session info');
+
+  var sessTsRefClocks = session.tsRefClocks;
+  t.ok(sessTsRefClocks && sessTsRefClocks.length == 1, 'got one TS Ref Clock at Session Level');
+  t.equal(sessTsRefClocks[0].clksrc, 'ntp', 'NTP Clock Source');
+  t.equal(sessTsRefClocks[0].clksrcExt, '/traceable/', 'traceable Clock Source');
 });

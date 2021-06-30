@@ -1,3 +1,60 @@
+2.14.1 / 2020-12-02
+===================
+  * Fix `a=rtcp-fb` bug where trr-int is `*` via #91
+
+2.14.0 / 2020-01-22
+===================
+  * Add `a=ptime` now support float values for sub-ms values via #89
+
+2.13.0 / 2019-09-29
+===================
+  * Add `a=ts-refclk` and `a=mediaclk` for RFC7273 support via #78
+
+2.12.0 / 2019-08-05
+===================
+  * a=extmap-allow-mixed (RFC 8285) #87
+
+2.11.0 / 2019-07-28
+===================
+  * BFCP RFC4583 support via #86
+
+2.10.0 / 2019-07-12
+===================
+  * `a=connection` support for RFC4145 via #85
+
+2.9.0 / 2019-07-11
+==================
+  * `a=keywds` support via #82
+
+2.8.0 / 2019-05-29
+==================
+  * `a=extmap` `encrypt-uri` improvements in #81
+  * `parsePayloads` safe parsing bugfix for integer equivalent m-lines #80
+
+2.7.0 / 2018-11-21
+==================
+  * `a=sctp-port` + `a=max-message-size` support added in #76 via @egzonzeneli
+
+2.6.0 / 2018-11-14
+==================
+  * `a=label` support added in #75 via @jeremy-j-ackso
+
+2.5.0 / 2018-11-02
+==================
+  * `a=bundle-only` support added in #73 via @ibc
+
+2.4.1 / 2018-04-02
+==================
+  * `parseParams` now doesn't break on name only params #70 via @manuc66
+
+2.4.0 / 2018-01-24
+==================
+  * `a=source-filter` support added in #69 via @thosil
+
+2.3.1 / 2018-01-05
+==================
+  * `a=ssrc` bug attributes including dashes fixed in #68 via @MichelSimonot
+
 2.3.0 / 2017-03-06
 ==================
   * `a=framerate` from rfc4566 now parseable - #63 via @gregpabian
